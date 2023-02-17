@@ -153,3 +153,6 @@ dmypy.json
 cython_debug/
 
 input/
+logs/
+models/
+.vscode/
