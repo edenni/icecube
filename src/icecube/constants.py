@@ -1,12 +1,6 @@
-import os.path
 from pathlib import Path
 
-
-project_dir = Path(
-    os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..")
-    )
-)
+project_dir = Path.cwd().parent.parent
 
 # Data
 input_dir = project_dir / "input"

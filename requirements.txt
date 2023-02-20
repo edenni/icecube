@@ -2,6 +2,7 @@ aiohttp==3.8.4
 aiosignal==1.3.1
 ansi-escapes==0.1.1
 ansi-styles==0.2.2
+antlr4-python3-runtime==4.9.3
 anyio==3.6.2
 appdirs==1.4.4
 argon2-cffi==21.3.0
@@ -39,6 +40,8 @@ graphnet==0.2.4+147.g81fce2e
 graphviz==0.20.1
 greenlet==2.0.2
 has-flag==0.1.1
+hydra-core==1.3.1
+icecube==0.0.1
 idna==3.4
 importlib-metadata==6.0.0
 importlib-resources==5.10.2
@@ -46,6 +49,7 @@ ipykernel==6.16.2
 ipython==7.34.0
 ipython-genutils==0.2.0
 ipywidgets==7.7.3
+isort==5.11.5
 jedi==0.18.2
 Jinja2==3.1.2
 joblib==1.2.0
@@ -75,6 +79,7 @@ nest-asyncio==1.5.6
 notebook==6.5.2
 notebook_shim==0.2.2
 numpy==1.21.6
+omegaconf==2.3.0
 packaging==23.0
 pandas==1.3.5
 pandocfilters==1.5.0

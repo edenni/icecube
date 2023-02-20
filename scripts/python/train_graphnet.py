@@ -1,48 +1,34 @@
-import sys
 import sqlite3
-from typing import List, Optional, Dict, Any
 from pathlib import Path
+from typing import Any, Dict, List
 
-prj_path = Path("/media/eden/sandisk/projects/icecube/")
-sys.path.append(str(prj_path))
-
-from src.constants import *
 from graphnet.utilities.logging import get_logger
+
+from icecube.constants import *
 
 logger = get_logger(log_folder=log_dir)
 
 
-import torch
-import wandb
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
-from lion_pytorch import Lion
-from sklearn.model_selection import KFold
-from torch.optim import Adam, SGD, AdamW, Adagrad
-from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import EarlyStopping, LearningRateMonitor
-from pytorch_lightning.loggers import WandbLogger
-
+import torch
 from graphnet.data.constants import FEATURES, TRUTH
 from graphnet.models import StandardModel
 from graphnet.models.detector.icecube import IceCubeKaggle
 from graphnet.models.gnn import DynEdge
-from graphnet.data.sqlite.sqlite_dataset import SQLiteDataset
 from graphnet.models.graph_builders import KNNGraphBuilder
-from graphnet.models.task.reconstruction import (
-    DirectionReconstructionWithKappa,
-    ZenithReconstructionWithKappa,
-    AzimuthReconstructionWithKappa,
-)
-from graphnet.training.callbacks import ProgressBar, PiecewiseLinearLR
-from graphnet.training.loss_functions import (
-    VonMisesFisher3DLoss,
-    VonMisesFisher2DLoss,
-)
+from graphnet.models.task.reconstruction import \
+    DirectionReconstructionWithKappa
+from graphnet.training.callbacks import PiecewiseLinearLR, ProgressBar
 from graphnet.training.labels import Direction
+from graphnet.training.loss_functions import VonMisesFisher3DLoss
 from graphnet.training.utils import make_dataloader
-
+from pytorch_lightning.callbacks import EarlyStopping, LearningRateMonitor
+from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.profiler import AdvancedProfiler
+from sklearn.model_selection import KFold
+from torch.optim import SGD
+from tqdm import tqdm
 
 torch.set_float32_matmul_precision("high")
 
@@ -54,8 +40,9 @@ PULSE_THRESHOLD = 400
 SEED = 42
 
 # Training configs
-MAX_EPOCHS = 100
-LR = 1e-3
+MAX_EPOCHS = 50
+LR = 1e-5
+MOMENTUM = 0.9
 BS = 256
 ES = 5
 NUM_FOLDS = 5
@@ -67,7 +54,7 @@ COUNT_PATH = FOLD_PATH / "batch51_100_counts.csv"
 CV_PATH = FOLD_PATH / f"batch51_100_cv_max_{PULSE_THRESHOLD}_pulses.csv"
 WANDB_DIR = log_dir
 PROJECT_NAME = "icecube"
-GROUP_NAME = "ft_batch_51_100"
+GROUP_NAME = "ft_sub_5_batch_51_100"
 
 CREATE_FOLDS = False
 
@@ -140,8 +127,8 @@ config = {
         "max_epochs": MAX_EPOCHS,
         "gpus": [0],
         "distribution_strategy": None,
-        # "limit_train_batches": 10,  # debug
-        # "limit_val_batches": 10,
+        "limit_train_batches": 0.1,  # debug
+        "limit_val_batches": 0.1,
     },
     "base_dir": "training",
     "wandb": {
@@ -183,10 +170,12 @@ def build_model(
         detector=detector,
         gnn=gnn,
         tasks=[task],
-        optimizer_class=Adam,
+        optimizer_class=SGD,
         optimizer_kwargs={
             "lr": LR,
-            "eps": 1e-3,
+            # "eps": 1e-3,
+            "momentum": MOMENTUM,
+            "nesterov": True,
         },
         scheduler_class=PiecewiseLinearLR,
         scheduler_kwargs={
@@ -310,14 +299,18 @@ def train_dynedge(
         ProgressBar(),
     ]
 
+    profiler = AdvancedProfiler(dirpath=log_dir, filename="profile.txt")
+
     model.fit(
         train_dataloader,
         validate_dataloader,
         callbacks=callbacks,
         logger=wandb_logger,
+        profiler=profiler,
         **config["fit"],
     )
 
+    wandb_logger.experiment.save(str(profiler.dirpath / profiler.filename))
     wandb_logger.experiment.finish()
 
     return model
@@ -340,10 +333,10 @@ def calculate_angular_error(df: pd.DataFrame) -> pd.DataFrame:
     )
     return df
 
-
-for fold in range(NUM_FOLDS):
-    train_dynedge(
-        config=config,
-        fold=fold,
-        resume="/media/eden/sandisk/projects/icecube/models/batch1_50/state_dict.pth",
-    )
+if __name__ == "__main__":
+    for fold in range(NUM_FOLDS):
+        train_dynedge(
+            config=config,
+            fold=fold,
+            resume="/media/eden/sandisk/projects/icecube/models/batch1_50/state_dict.pth",
+        )
