@@ -1,0 +1,3 @@
+[submodule "src/graphnet"]
+	path = src/graphnet
+	url = https://github.com/edenni/graphnet
