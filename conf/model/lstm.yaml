@@ -1,23 +1,28 @@
 _target_: icecube.model.LSTMClassifier
 
+
+defaults:
+  - optimizer: adam
+  - scheduler: plateau
+
 input_size: 9
 hidden_size: 160
-output_size: ${num_bins}
-num_layers: 1,
+output_size: 256
+num_layers: 1
 bias: false
 batch_first: true
-dropout: 0,
+dropout: 0
 bidirectional: false
 
-optimizer:
-  _target_: torch.optim.Adam
-  _partial_: true
-  lr: 5e-3
-  weight_decay: 0.0
+# optimizer:
+#   _target_: torch.optim.Adam
+#   _partial_: true
+#   lr: 5e-3
+#   weight_decay: 0.0
 
-scheduler:
-  _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
-  _partial_: true
-  mode: min
-  factor: 0.1
-  patience: 10
+# scheduler:
+#   _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
+#   _partial_: true
+#   mode: min
+#   factor: 0.1
+#   patience: 10

@@ -9,7 +9,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
 
-from icecube.data.utils import az_onehot, create_bins
+from icecube.data.utils import az_onehot
+from icecube.utils.coordinate import create_bins
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,8 @@ class EventDataModule(LightningDataModule):
         num_workers: int = 8,
         val_size: float = 0.05,
     ) -> None:
+        super(EventDataModule, self).__init__()
+
         self.num_bins = num_bins
         self.data_dir = data_dir
         self.batch_size = batch_size
@@ -70,7 +73,7 @@ class EventDataModule(LightningDataModule):
                 y_train, azimuth_edges, zenith_edges, self.num_bins
             )
 
-            logger.info("Stardard normalizing")
+            logger.info("Stardard normalization")
             original_shape = X_train.shape
             scaler = StandardScaler().fit(
                 X_train[: min(original_shape[0], 100000)].reshape(
@@ -113,7 +116,7 @@ class EventDataModule(LightningDataModule):
             dataset=self.trainset,
             batch_size=self.batch_size,
             shuffle=True,
-            num_workers=self.num_workders,
+            num_workers=self.num_workers,
             pin_memory=True,
         )
 
@@ -122,6 +125,6 @@ class EventDataModule(LightningDataModule):
             dataset=self.validset,
             batch_size=self.batch_size,
             shuffle=False,
-            num_workers=self.num_workders,
+            num_workers=self.num_workers,
             pin_memory=True,
         )

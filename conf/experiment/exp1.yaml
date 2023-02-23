@@ -13,9 +13,17 @@ defaults:
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
-
+hydra:
+  job:
+    name: pointpicker_lstm
 
 trainer:
-  min_epochs: 10
-  max_epochs: 100
+  max_epochs: 2
 
+callbacks:
+  early_stopping:
+    monitor: val/mae
+  model_checkpoint:
+    monitor: val/mae
+
+num_bins: 16
