@@ -10,5 +10,5 @@ metadata_path = raw_data_dir / "train_meta.parquet"
 geometry_path = raw_data_dir / "sensor_geometry.csv"
 train_dir = raw_data_dir / "train"
 
-# Logging
+# Logs
 log_dir = project_dir / "logs"

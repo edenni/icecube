@@ -1,0 +1,17 @@
+defaults:
+  - _self_
+  - paths: default
+  - model: default
+  - data: default
+  - trainer: default
+  - callbacks: default
+  - logger: default
+  - hydra: default
+
+  - experiment: null
+
+pipeline: train  # [train, val, cv]
+num_folds: 5
+seed: 42
+
+name: lstm

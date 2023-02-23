@@ -4,7 +4,8 @@ import torch.nn as nn
 import torch.optim as optim
 from pytorch_lightning import LightningDataModule, LightningModule, Trainer
 from torch.utils.data import DataLoader, Dataset
-
+from omegaconf import DictConfig
+from icecube.model.base import Model
 
 class LSTMClassifier(LightningModule):
     def __init__(
@@ -17,9 +18,12 @@ class LSTMClassifier(LightningModule):
         batch_first: bool = True,
         dropout: float = 0,
         bidirectional: bool = False,
-        lr: float = 3e-4,
+        optimizer: optim.Optimizer = None,
+        scheduler: optim.lr_scheduler._LRScheduler = None,
+        *args,
+        **kwargs,
     ):
-        super(LSTMClassifier, self).__init__()
+        super(LSTMClassifier, self).__init__(args, kwargs)
         self.save_hyperparameters()
 
         self.lstm = nn.LSTM(

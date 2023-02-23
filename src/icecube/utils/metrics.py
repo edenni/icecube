@@ -1,5 +1,6 @@
 import numpy as np
 
+from icecube import constants
 from icecube.utils.coordinate import az2xyz
 
 

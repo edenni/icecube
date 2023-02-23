@@ -1,0 +1,13 @@
+defaults:
+  - model: default
+  - data: default
+  - trainer: default
+  - callbacks: default
+  - logger: default
+  - _self_
+
+pipeline: train  # [train, val, cv]
+num_folds: 5
+seed: 42
+
+name: default

@@ -1,0 +1,7 @@
+_target_: icecube.data.datamodule.EventDataModule
+data_dir: ${paths.data_dir}/preprocessed
+num_bins: 16
+batch_size: 256
+num_workers: 16
+batch_ids: [51, 52, 53, 54, 55]
+file_format: ${data.data_dir}/pointpicker_mpc128_n9_batch_{batch_id:d}.npz
