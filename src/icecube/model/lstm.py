@@ -14,8 +14,11 @@ from torchmetrics import Accuracy
 
 from icecube.metrics.angle import MeanAngularError
 from icecube.model.base import Model
-from icecube.utils.coordinate import (bins2angles, create_angle_bins,
-                                      create_bins)
+from icecube.utils.coordinate import (
+    bins2angles,
+    create_angle_bins,
+    create_bins,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -63,9 +66,9 @@ class LSTMClassifier(LightningModule):
         azimuth_bins = torch.as_tensor(azimuth_bins)
         zenith_bins = torch.as_tensor(zenith_bins)
 
-        self.angle_bins = torch.as_tensor(create_angle_bins(
-            azimuth_bins, zenith_bins, self.num_bins
-        ))
+        self.angle_bins = torch.as_tensor(
+            create_angle_bins(azimuth_bins, zenith_bins, self.num_bins)
+        )
 
     def forward(self, x):
         # lstm_out = (batch_size, seq_len, hidden_size)
@@ -94,14 +97,13 @@ class LSTMClassifier(LightningModule):
         self.mae(preds, y)
 
         return loss
-    
 
     def on_validation_start(self) -> None:
         if self.angle_bins.device != self.device:
             logger.info(
                 f"Start validation. Move angle bin vertors to <{self.device}>"
             )
-            self.angle_bins = self.angle_bins.to(self.device)    
+            self.angle_bins = self.angle_bins.to(self.device)
 
     def on_validation_epoch_end(self) -> None:
         acc = self.acc.compute()

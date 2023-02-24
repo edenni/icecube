@@ -5,7 +5,7 @@ from typing import List, Optional, Tuple, Union
 import numpy as np
 import torch
 from pytorch_lightning import LightningDataModule
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, KFold
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
 
@@ -25,6 +25,8 @@ class EventDataModule(LightningDataModule):
         batch_size: int,
         num_workers: int = 8,
         val_size: float = 0.05,
+        num_folds: int = None,
+        k: int = None,
     ) -> None:
         super(EventDataModule, self).__init__()
 
@@ -32,34 +34,38 @@ class EventDataModule(LightningDataModule):
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.file_format = file_format
-        self.batch_ids = batch_ids
+        self.train_batch_ids = batch_ids
         self.num_workers = num_workers
         self.val_size = val_size
+        self.num_folds = num_folds
+        self.k = k
+        # self.save_hyperparameters(logger=False)
 
     def setup(self, stage: Optional[str] = None) -> None:
         if not stage or stage == "train":
             # Read data
             logger.info(
-                f"Reading picked up points from batches: {self.batch_ids}"
+                f"Reading picked up points from batches: {self.train_batch_ids}"
             )
 
-            X_train = None
-            y_train = None
-            for batch_id in self.batch_ids:
+            X = None
+            y = None
+
+            for batch_id in self.train_batch_ids:
                 logger.info(f"Reading batch {batch_id}")
                 train_data_file = np.load(
                     self.file_format.format(batch_id=batch_id)
                 )
 
-                X_train = (
+                X = (
                     train_data_file["x"]
-                    if X_train is None
-                    else np.append(X_train, train_data_file["x"], axis=0)
+                    if X is None
+                    else np.append(X, train_data_file["x"], axis=0)
                 )
-                y_train = (
+                y = (
                     train_data_file["y"]
-                    if y_train is None
-                    else np.append(y_train, train_data_file["y"], axis=0)
+                    if y is None
+                    else np.append(y, train_data_file["y"], axis=0)
                 )
 
                 train_data_file.close()
@@ -70,35 +76,46 @@ class EventDataModule(LightningDataModule):
             logger.info("Convert azimuth and zenith to one-hot")
             azimuth_edges, zenith_edges = create_bins(self.num_bins)
             y_onehot = az_onehot(
-                y_train, azimuth_edges, zenith_edges, self.num_bins
+                y, azimuth_edges, zenith_edges, self.num_bins
             )
 
             logger.info("Stardard normalization")
-            original_shape = X_train.shape
+            original_shape = X.shape
             scaler = StandardScaler().fit(
-                X_train[: min(original_shape[0], 100000)].reshape(
+                X[: min(original_shape[0], 100000)].reshape(
                     -1, original_shape[-1]
                 )
             )
-            X_train = scaler.transform(
-                X_train.reshape(-1, original_shape[-1])
+            X = scaler.transform(
+                X.reshape(-1, original_shape[-1])
             ).reshape(original_shape)
 
-            # Split dataset
-            (
-                X_train,
-                X_val,
-                y_train,
-                y_val,
-                y_onehot_train,
-                y_onehot_val,
-            ) = train_test_split(
-                X_train,
-                y_train,
-                y_onehot,
-                test_size=self.val_size,
-                shuffle=True,
-            )
+            if self.num_folds:
+                kf = KFold(n_splits=self.num_folds, shuffle=True)
+                all_splits = list(kf.split(X, y))
+                train_idx, val_idx = all_splits[self.k]
+                X_train = X[train_idx]
+                y_train = y[train_idx]
+                y_onehot_train = y_onehot[train_idx]
+                X_val = X[val_idx]
+                y_val = y[val_idx]
+                y_onehot_val = y_onehot[val_idx]
+            else:
+                # Split dataset
+                (
+                    X_train,
+                    X_val,
+                    y_train,
+                    y_val,
+                    y_onehot_train,
+                    y_onehot_val,
+                ) = train_test_split(
+                    X_train,
+                    y_train,
+                    y_onehot,
+                    test_size=self.val_size,
+                    shuffle=True,
+                )
 
             self.trainset = TensorDataset(
                 torch.as_tensor(X_train),

@@ -1,16 +1,17 @@
 import hydra
 from omegaconf import DictConfig
+from pytorch_lightning import seed_everything
 
-from icecube.pipeline import fit_one_cycle
+from icecube.pipeline import train
 
 
 @hydra.main(version_base=None, config_path="../../conf/", config_name="train")
 def main(cfg: DictConfig):
-    pipeline = {
-        "train": fit_one_cycle,
-    }
-    
-    pipeline[cfg.pipeline](cfg)
+    seed_everything(cfg.seed)
+
+    if cfg.train:
+        train(cfg)
+
 
 if __name__ == "__main__":
     main()

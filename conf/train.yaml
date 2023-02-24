@@ -13,5 +13,4 @@ defaults:
   - experiment: null
 
 pipeline: train  # [train, val, cv]
-num_folds: 5
 seed: 42

@@ -8,7 +8,7 @@ defaults:
   - override /model: lstm.yaml
   - override /callbacks: default.yaml
   - override /trainer: default.yaml
-  - override /logger: null
+  - override /logger: wandb
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
@@ -18,12 +18,35 @@ hydra:
     name: pointpicker_lstm
 
 trainer:
-  max_epochs: 2
+  max_epochs: 500
 
 callbacks:
   early_stopping:
     monitor: val/mae
+    patience: 20
+    mode: min
+    min_delta: 0.001
   model_checkpoint:
     monitor: val/mae
 
+model:
+  num_layers: 2
+  optimizer:
+    lr: 3e-4
+    weight_decay: 1e-5
+  scheduler:
+    patience: 5
+
+logger:
+  wandb:
+    project: icecube
+    name: pointpicker_lstm_batch_51_80
+    group: pointpicker_lstm_batch_51_80_3fold
+    log_model: true
+
 num_bins: 16
+
+# train
+train: true
+cv: 3
+fold: 0
