@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from hydra.utils import instantiate
 from omegaconf import DictConfig
@@ -9,8 +9,12 @@ from pytorch_lightning.loggers.wandb import WandbLogger
 
 from icecube.data.utils import create_dataloaders
 from icecube.utils.logging import flatten_dict
+from icecube.model.lstm import LSTMRegressor
 
-def one_cycle(cfg: DictConfig, num_folds: int = None, k: int = None) -> str:
+
+def one_cycle(
+    cfg: DictConfig, num_folds: int = None, k: int = None
+) -> Optional[str]:
     """Fitting model one cycle.
 
     Returns:
@@ -19,7 +23,7 @@ def one_cycle(cfg: DictConfig, num_folds: int = None, k: int = None) -> str:
     dm: LightningDataModule = instantiate(cfg.data, num_folds=num_folds, k=k)
     model: LightningModule = instantiate(cfg.model)
 
-    callbacks: List[Callback] = (
+    callbacks: Optional[List[Callback]] = (
         [
             instantiate(callback_cfg)
             for _, callback_cfg in cfg.callbacks.items()
@@ -27,41 +31,35 @@ def one_cycle(cfg: DictConfig, num_folds: int = None, k: int = None) -> str:
         if cfg.get("callbacks")
         else None
     )
-    logger: List[Logger] = (
-        [instantiate(logger_cfg) for _, logger_cfg in cfg.logger.items()]
-        if cfg.get("logger")
-        else None
+    logger: Optional[WandbLogger] = (
+        instantiate(cfg.logger) if cfg.get("logger") else None
     )
 
     # Retrieve wandb logger
-    wandb_logger = [l for l in logger if isinstance(l, WandbLogger)]
-    wandb_logger: WandbLogger = wandb_logger[0] if len(wandb_logger) > 0 else None
-    wandb_logger.experiment.config.update(flatten_dict(cfg))
-    wandb_logger.experiment.watch(model)
+    if isinstance(logger, WandbLogger):
+        logger.experiment.config.update(flatten_dict(cfg))
+        logger.experiment.watch(model)
 
     trainer: Trainer = instantiate(
         cfg.trainer, callbacks=callbacks, logger=logger
     )
 
-    dm.setup("train")
     trainer.fit(model=model, datamodule=dm)
 
-    wandb_logger.experiment.finish()
+    logger.experiment.finish()
 
-    return [
-        cb.best_model_path
-        for cb in callbacks
-        if isinstance(cb, ModelCheckpoint)
-    ][0]
+    if trainer.checkpoint_callback:
+        return trainer.checkpoint_callback.best_model_path
+    else:
+        return None
 
 
 def cv(cfg: DictConfig) -> None:
     assert cfg.num_folds > 0
+
 
 def train(cfg):
     if cfg.cv and isinstance(cfg.cv, int):
         one_cycle(cfg, cfg.cv, cfg.fold)
     else:
         one_cycle(cfg)
-      
-

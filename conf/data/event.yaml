@@ -3,5 +3,7 @@ data_dir: ${paths.data_dir}/preprocessed
 num_bins: 16
 batch_size: 512
 num_workers: 16
-batch_ids: [51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68]
+batch_ids: [51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74]
+val_size: 0.1
 file_format: ${data.data_dir}/pointpicker_mpc128_n9_batch_{batch_id:d}.npz
+shift_azimuth: false

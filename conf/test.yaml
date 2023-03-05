@@ -1,0 +1,20 @@
+# @package _global_
+
+defaults:
+  - _self_
+  - data: default.yaml # choose datamodule with `test_dataloader()` for evaluation
+  - model: default.yaml
+  - trainer: default.yaml
+  - paths: default.yaml
+  - hydra: default.yaml
+  - logger: null
+
+task_name: "test"
+
+tags: ["test"]
+
+pipeline: test
+seed: 42
+
+# passing checkpoint path is necessary for evaluation
+ckpt_path: ???

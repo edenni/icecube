@@ -344,16 +344,12 @@ def calculate_angular_error(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def test_dynedge(
-    config: Dict[str, Any], resume: Path = None
-) -> pd.DataFrame:
+def test_dynedge(config: Dict[str, Any], resume: Path = None) -> pd.DataFrame:
     """Builds(or resumes) and trains GNN according to config."""
     logger.info(f"features: {config['features']}")
     logger.info(f"truth: {config['truth']}")
 
-    run_name = (
-        f"dynedge_{config['target']}_{config['run_name_tag']}"
-    )
+    run_name = f"dynedge_{config['target']}_{config['run_name_tag']}"
 
     wandb_logger = WandbLogger(
         project=PROJECT_NAME,
@@ -407,13 +403,11 @@ def test_dynedge(
 
     return model
 
-if __name__ == "__main__":
-    if TRAIN:
-        for fold in range(NUM_FOLDS):
-            train_dynedge(
-                config=config,
-                fold=fold,
-                resume="/media/eden/sandisk/projects/icecube/logs/icecube/bx1cuyfg/checkpoints/graphnet-epochepoch=68-val_maeval/mae=1.2103.ckpt",
-            )
-    else:
 
+if __name__ == "__main__":
+    for fold in range(NUM_FOLDS):
+        train_dynedge(
+            config=config,
+            fold=fold,
+            resume="/media/eden/sandisk/projects/icecube/logs/icecube/bx1cuyfg/checkpoints/graphnet-epochepoch=68-val_maeval/mae=1.2103.ckpt",
+        )

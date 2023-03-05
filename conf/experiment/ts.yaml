@@ -5,7 +5,7 @@
 
 defaults:
   - override /data: event.yaml
-  - override /model: lstmrgr.yaml
+  - override /model: transformer.yaml
   - override /callbacks: default.yaml
   - override /trainer: default.yaml
   - override /logger: wandb
@@ -31,14 +31,10 @@ callbacks:
     mode: min
 
 data:
-  batch_size: 1024
-  shift_azimuth: true
+  batch_size: 256
+  shift_azimuth: false
 
 model:
-  num_layers: 2
-  bidirectional: true
-  bias: true
-
   optimizer:
     lr: 1e-3
     weight_decay: 1e-5
@@ -47,7 +43,7 @@ model:
 
 logger:
   project: icecube
-  name: pointpicker_lstm_rgr_batch_51_74_bi_bias_shift
+  name: pointpicker_attn_batch_51_74
   group: 
   log_model: true
 

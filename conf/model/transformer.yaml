@@ -1,4 +1,5 @@
-_target_: icecube.model.lstm.LSTM
+_target_: icecube.model.transformer.TransformerClassifier
+
 
 defaults:
   - optimizer: adam
@@ -6,11 +7,10 @@ defaults:
   - criterion: crossentropy
 
 input_size: 9
-hidden_size: 160
+embed_dim: 64
+nhead: 4
+feedforward_dim: 256
 output_size: 256
-num_layers: 1
-bias: false
 batch_first: true
-dropout: 0
-bidirectional: false
+dropout: 0.1
 task: clf

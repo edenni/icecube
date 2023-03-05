@@ -9,6 +9,7 @@ defaults:
   - override /callbacks: default.yaml
   - override /trainer: default.yaml
   - override /logger: wandb
+  - override /model/criterion: mse
 
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
@@ -45,13 +46,12 @@ model:
   scheduler:
     patience: 5
 
+
 logger:
   project: icecube
   name: pointpicker_lstm_rgr_batch_51_74_bi_bias_shift
   group: 
   log_model: true
-
-num_bins: 16
 
 # train
 train: true

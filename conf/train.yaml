@@ -12,5 +12,7 @@ defaults:
 
   - experiment: null
 
-pipeline: train  # [train, val, cv]
+tags: ["train"]
+
+pipeline: train
 seed: 42

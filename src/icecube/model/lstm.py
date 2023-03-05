@@ -1,19 +1,12 @@
 import logging
 from math import sqrt
 from typing import Callable
-
-import numpy as np
-import pandas as pd
 import torch
 import torch.nn as nn
-import torch.optim as optim
-from omegaconf import DictConfig
-from pytorch_lightning import LightningDataModule, LightningModule, Trainer
-from torch.utils.data import DataLoader, Dataset
+from pytorch_lightning import LightningModule
 from torchmetrics import Accuracy
 
 from icecube.metrics.angle import MeanAngularError
-from icecube.model.base import Model
 from icecube.utils.coordinate import (
     bins2angles,
     create_angle_bins,
@@ -23,7 +16,7 @@ from icecube.utils.coordinate import (
 logger = logging.getLogger(__name__)
 
 
-class LSTMClassifier(LightningModule):
+class LSTM(LightningModule):
     def __init__(
         self,
         input_size: int,
@@ -36,9 +29,18 @@ class LSTMClassifier(LightningModule):
         bidirectional: bool = False,
         optimizer: Callable = None,
         scheduler: Callable = None,
+        criterion: nn.Module = None,
+        task: str = "clf",
     ):
-        super(LSTMClassifier, self).__init__()
-        self.save_hyperparameters()
+        super().__init__()
+        self.save_hyperparameters(ignore=["criterion"])
+
+        # Checks
+        assert task in (
+            "clf",
+            "rgr",
+        ), f"Task must be one of clf or rgr but got {task}"
+
         self.num_bins = int(sqrt(output_size))
 
         self.lstm = nn.LSTM(
@@ -51,24 +53,22 @@ class LSTMClassifier(LightningModule):
             bidirectional=bidirectional,
         )
 
-        # TODO: create multiple fc layers
-        self.linear = nn.Linear(hidden_size, output_size)
+        fc_input = hidden_size * 2 if bidirectional else hidden_size
+        self.linear = nn.Linear(fc_input, output_size)
 
-        # TODO: build criterion from config
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = criterion
 
-        # Metircs
-        self.acc = Accuracy(task="multiclass", num_classes=output_size)
         self.mae = MeanAngularError()
 
-        # Create bins
-        azimuth_bins, zenith_bins = create_bins(self.num_bins)
-        azimuth_bins = torch.as_tensor(azimuth_bins)
-        zenith_bins = torch.as_tensor(zenith_bins)
+        if task == "clf":
+            self.acc = Accuracy(task="multiclass", num_classes=output_size)
+            azimuth_bins, zenith_bins = create_bins(self.num_bins)
+            azimuth_bins = torch.as_tensor(azimuth_bins)
+            zenith_bins = torch.as_tensor(zenith_bins)
 
-        self.angle_bins = torch.as_tensor(
-            create_angle_bins(azimuth_bins, zenith_bins, self.num_bins)
-        )
+            self.angle_bins = torch.as_tensor(
+                create_angle_bins(azimuth_bins, zenith_bins, self.num_bins)
+            )
 
     def forward(self, x):
         # lstm_out = (batch_size, seq_len, hidden_size)
@@ -77,38 +77,52 @@ class LSTMClassifier(LightningModule):
         y_pred = self.linear(last)
         return y_pred
 
-    def training_step(self, batch, batch_idx):
-        x, _, y_oh = batch
+    def __shared_step(self, x, y, y_oh):
         y_hat = self(x)
-        loss = self.criterion(y_hat, y_oh)
-        self.log("train/loss", loss, on_step=True)
 
-        return loss
+        if self.hparams.task == "clf":
+            loss = self.criterion(y_hat, y_oh)
+        else:
+            loss = self.criterion(y_hat, y_oh)
+
+        return loss, y_hat
+
+    def training_step(self, batch, batch_idx):
+        x, y, y_oh = batch
+        loss, _ = self.__shared_step(x, y, y_oh)
+        self.log("train/loss", loss, on_step=True)
 
     def validation_step(self, batch, batch_idx):
         x, y, y_oh = batch
-        y_hat = self(x)
-        loss = self.criterion(y_hat, y_oh)
-        self.acc(y_hat, y_oh)
+        loss, y_hat = self.__shared_step(x, y, y_oh)
         self.log("val/loss", loss)
 
-        azimuth, zenith = bins2angles(y_hat, self.angle_bins, self.num_bins)
-        preds = torch.stack([azimuth, zenith], axis=-1)
-        self.mae(preds, y)
+        if self.hparams.task == "clf":
+            self.acc(y_hat, y)
+            azimuth, zenith = bins2angles(
+                y_hat, self.angle_bins, self.num_bins
+            )
+            y_hat = torch.stack([azimuth, zenith], axis=-1)
+
+        self.mae(y_hat, y)
 
         return loss
 
     def on_validation_start(self) -> None:
-        if self.angle_bins.device != self.device:
+        if (
+            self.angle_bins.device != self.device
+            and self.hparams.task == "clf"
+        ):
             logger.info(
                 f"Start validation. Move angle bin vertors to <{self.device}>"
             )
             self.angle_bins = self.angle_bins.to(self.device)
 
     def on_validation_epoch_end(self) -> None:
-        acc = self.acc.compute()
+        if self.hparams.task == "clf":
+            acc = self.acc.compute()
+            self.log("val/acc", acc)
         mae = self.mae.compute()
-        self.log("val/acc", acc)
         self.log("val/mae", mae, prog_bar=True)
 
     def configure_optimizers(self):
