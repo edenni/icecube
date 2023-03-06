@@ -1,3 +1,4 @@
+# %%
 import sqlite3
 from pathlib import Path
 from typing import Any, Dict, List
@@ -11,11 +12,8 @@ logger = get_logger(log_folder=log_dir)
 import numpy as np
 import pandas as pd
 import torch
-from pytorch_lightning.callbacks import (
-    EarlyStopping,
-    LearningRateMonitor,
-    ModelCheckpoint,
-)
+from pytorch_lightning.callbacks import (EarlyStopping, LearningRateMonitor,
+                                         ModelCheckpoint)
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.profiler import SimpleProfiler
 from sklearn.model_selection import KFold
@@ -27,9 +25,8 @@ from graphnet.models import StandardModel
 from graphnet.models.detector.icecube import IceCubeKaggle
 from graphnet.models.gnn import DynEdge
 from graphnet.models.graph_builders import KNNGraphBuilder
-from graphnet.models.task.reconstruction import (
-    DirectionReconstructionWithKappa,
-)
+from graphnet.models.task.reconstruction import \
+    DirectionReconstructionWithKappa
 from graphnet.training.callbacks import PiecewiseLinearLR, ProgressBar
 from graphnet.training.labels import Direction
 from graphnet.training.loss_functions import VonMisesFisher3DLoss
@@ -48,7 +45,7 @@ SEED = 42
 MAX_EPOCHS = 100
 LR = 5e-4
 MOMENTUM = 0.9
-BS = 1024
+BS = 256
 ES = 10
 NUM_FOLDS = 5
 NUM_WORKERS = 16
@@ -104,44 +101,6 @@ def count_pulses(database: Path, pulsemap: str) -> pd.DataFrame:
     df = pd.DataFrame(counts)
     df.to_csv(COUNT_PATH)
     return df
-
-
-if CREATE_FOLDS:
-    df = (
-        count_pulses(DATABASE_PATH, PULSEMAP)
-        if not COUNT_PATH.exists()
-        else pd.read_csv(COUNT_PATH)
-    )
-    make_selection(df=df, num_folds=NUM_FOLDS, pulse_threshold=PULSE_THRESHOLD)
-
-
-config = {
-    "path": str(DATABASE_PATH),
-    "pulsemap": "pulse_table",
-    "truth_table": "meta_table",
-    "features": FEATURES.KAGGLE,
-    "truth": TRUTH.KAGGLE,
-    "index_column": "event_id",
-    "batch_size": BS,
-    "num_workers": NUM_WORKERS,
-    "target": "direction",
-    "run_name_tag": "batch_1_50",
-    "early_stopping_patience": ES,
-    "fit": {
-        "max_epochs": MAX_EPOCHS,
-        "gpus": [0],
-        "distribution_strategy": None,
-        "limit_train_batches": 0.1,  # debug
-        "limit_val_batches": 0.1,
-    },
-    "base_dir": "training",
-    "wandb": {
-        "project": PROJECT_NAME,
-        "group": GROUP_NAME,
-    },
-    "lr": LR,
-}
-
 
 def build_model(
     config: Dict[str, Any], train_dataloader: Any
@@ -262,70 +221,6 @@ def make_dataloaders(config: Dict[str, Any], fold: int = 0) -> List[Any]:
     return train_dataloader, validate_dataloader
 
 
-def train_dynedge(
-    config: Dict[str, Any], fold: int = 0, resume: Path = None
-) -> pd.DataFrame:
-    """Builds(or resumes) and trains GNN according to config."""
-    logger.info(f"features: {config['features']}")
-    logger.info(f"truth: {config['truth']}")
-
-    run_name = (
-        f"dynedge_{config['target']}_{config['run_name_tag']}_fold{fold}"
-    )
-
-    wandb_logger = WandbLogger(
-        project=PROJECT_NAME,
-        group=GROUP_NAME,
-        name=run_name,
-        save_dir=WANDB_DIR,
-        log_model=True,
-    )
-    wandb_logger.experiment.config.update(config)
-
-    train_dataloader, validate_dataloader = make_dataloaders(
-        config=config, fold=fold
-    )
-
-    if not resume:
-        model = build_model(config, train_dataloader)
-    else:
-        model = load_pretrained_model(config, state_dict_path=resume)
-
-    wandb_logger.experiment.watch(model, log="all")
-
-    # Training model
-    callbacks = [
-        # EarlyStopping(
-        #     monitor="val/mae",
-        #     patience=config["early_stopping_patience"],
-        # ),
-        LearningRateMonitor(logging_interval="step"),
-        ProgressBar(),
-        ModelCheckpoint(
-            filename="graphnet-{val/mae:.4f}-{epoch:02d}",
-            monitor="val/mae",
-            mode="min",
-            save_top_k=3,
-        ),
-    ]
-
-    profiler = SimpleProfiler(dirpath=log_dir, filename="profile")
-
-    model.fit(
-        train_dataloader,
-        validate_dataloader,
-        callbacks=callbacks,
-        logger=wandb_logger,
-        profiler=profiler,
-        **config["fit"],
-    )
-
-    wandb_logger.experiment.save(str(profiler.dirpath / profiler.filename))
-    wandb_logger.experiment.finish()
-
-    return model
-
-
 def convert_to_3d(df: pd.DataFrame) -> pd.DataFrame:
     """Converts zenith and azimuth to 3D direction vectors"""
     df["true_x"] = np.cos(df["azimuth"]) * np.sin(df["zenith"])
@@ -344,70 +239,120 @@ def calculate_angular_error(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def test_dynedge(config: Dict[str, Any], resume: Path = None) -> pd.DataFrame:
-    """Builds(or resumes) and trains GNN according to config."""
-    logger.info(f"features: {config['features']}")
-    logger.info(f"truth: {config['truth']}")
-
-    run_name = f"dynedge_{config['target']}_{config['run_name_tag']}"
-
-    wandb_logger = WandbLogger(
-        project=PROJECT_NAME,
-        group=GROUP_NAME,
-        name=run_name,
-        save_dir=WANDB_DIR,
-        log_model=True,
-    )
-    wandb_logger.experiment.config.update(config)
-
-    train_dataloader, validate_dataloader = make_dataloaders(
-        config=config, fold=fold
-    )
-
-    if not resume:
-        model = build_model(config, train_dataloader)
-    else:
-        model = load_pretrained_model(config, state_dict_path=resume)
-
-    wandb_logger.experiment.watch(model, log="all")
-
-    # Training model
-    callbacks = [
-        # EarlyStopping(
-        #     monitor="val/mae",
-        #     patience=config["early_stopping_patience"],
-        # ),
-        LearningRateMonitor(logging_interval="step"),
-        ProgressBar(),
-        ModelCheckpoint(
-            filename="graphnet-{val/mae:.4f}-{epoch:02d}",
-            monitor="val/mae",
-            mode="min",
-            save_top_k=3,
-        ),
-    ]
-
-    profiler = SimpleProfiler(dirpath=log_dir, filename="profile")
-
-    model.fit(
-        train_dataloader,
-        validate_dataloader,
-        callbacks=callbacks,
-        logger=wandb_logger,
-        profiler=profiler,
-        **config["fit"],
-    )
-
-    wandb_logger.experiment.save(str(profiler.dirpath / profiler.filename))
-    wandb_logger.experiment.finish()
-
-    return model
+# %%
+config = {
+    "inference_database_path": "/media/eden/sandisk/projects/icecube/input/sqlite/test_batch_641_660.db",
+    "path": str(DATABASE_PATH),
+    "pulsemap": "pulse_table",
+    "truth_table": "meta_table",
+    "features": FEATURES.KAGGLE,
+    "truth": TRUTH.KAGGLE,
+    "index_column": "event_id",
+    "batch_size": BS,
+    "num_workers": NUM_WORKERS,
+    "target": "direction",
+    "run_name_tag": "batch_1_50",
+    "early_stopping_patience": ES,
+    "fit": {
+        "max_epochs": MAX_EPOCHS,
+        "gpus": [0],
+        "distribution_strategy": None,
+        "limit_train_batches": 0.1,  # debug
+        "limit_val_batches": 0.1,
+    },
+    "base_dir": "training",
+    "wandb": {
+        "project": PROJECT_NAME,
+        "group": GROUP_NAME,
+    },
+    "lr": LR,
+}
 
 
-if __name__ == "__main__":
-    for fold in range(NUM_FOLDS):
-        train_dynedge(
-            config=config,
-            fold=fold,
-            resume="/media/eden/sandisk/projects/icecube/logs/icecube/bx1cuyfg/checkpoints/graphnet-epochepoch=68-val_maeval/mae=1.2103.ckpt",
+# %%
+ckpt = "/media/eden/sandisk/projects/icecube/models/graphnet/ft_graphnet_50_100.ckpt"
+
+# %%
+run_name = f"dynedge_{config['target']}_{config['run_name_tag']}"
+
+model = load_pretrained_model(config, state_dict_path=ckpt)
+
+test_dataloader = make_dataloader(
+    db = config['inference_database_path'],
+    selection = None, # Entire database
+    pulsemaps = config['pulsemap'],
+    features = config["features"],
+    truth = config["truth"],
+    batch_size = config['batch_size'],
+    num_workers = config['num_workers'],
+    shuffle = False,
+    labels = {'direction': Direction()},
+    index_column = config['index_column'],
+    truth_table = config['truth_table'],
+)
+
+
+# %%
+from torchmetrics import Metric
+
+
+class MeanAngularError(Metric):
+    def __init__(self):
+        super().__init__()
+        self.add_state(
+            "err",
+            default=torch.tensor(0.0, dtype=torch.float32),
+            dist_reduce_fx="sum",
         )
+        self.add_state(
+            "total",
+            default=torch.tensor(0, dtype=torch.long),
+            dist_reduce_fx="sum",
+        )
+
+    def update(self, preds: torch.Tensor, target: torch.Tensor):
+        if preds.size(1) > target.size(1):
+            preds = preds[:, : target.size(1)]
+
+        assert (
+            preds.shape == target.shape
+        ), f"preds in size {preds.shape} doesn't match target in size {target.shape}"
+
+        rt = torch.linalg.vector_norm(target, dim=-1, keepdim=True)
+        rp = torch.linalg.vector_norm(preds, dim=-1, keepdim=True)
+
+
+        target = target / rt
+        preds = preds / rp
+
+        err = torch.arccos(
+            target[:, 0] * preds[:, 0]
+            + target[:, 1] * preds[:, 1]
+            + target[:, 2] * preds[:, 2]
+        )
+
+        err = torch.clip(err, 0, 2*torch.pi)
+
+        self.err += err.sum()
+        self.total += preds.size(0)
+
+    def compute(self):
+        return self.err.item() / self.total.item()
+
+
+# %%
+model = model.to("cuda").eval()
+mae = MeanAngularError()
+
+# %%
+model.predict_as_dataframe(
+    dataloader=test_dataloader,
+    gpus=[0],
+    prediction_columns=model.prediction_columns,
+    additional_attributes=model.additional_attributes,
+)
+
+# %%
+
+
+

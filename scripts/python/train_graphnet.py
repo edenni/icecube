@@ -41,12 +41,12 @@ torch.set_float32_matmul_precision("high")
 PULSEMAP = "pulse_table"
 DATABASE_PATH = database_dir / "batch_51_100.db"
 # DATABASE_PATH = "/media/eden/sandisk/projects/icecube/input/sqlite/batch_1.db"
-PULSE_THRESHOLD = 400
+PULSE_THRESHOLD = 200
 SEED = 42
 
 # Training configs
 MAX_EPOCHS = 100
-LR = 5e-4
+LR = 3e-4
 MOMENTUM = 0.9
 BS = 1024
 ES = 10
@@ -59,7 +59,7 @@ COUNT_PATH = FOLD_PATH / "batch51_100_counts.csv"
 CV_PATH = FOLD_PATH / f"batch51_100_cv_max_{PULSE_THRESHOLD}_pulses.csv"
 WANDB_DIR = log_dir
 PROJECT_NAME = "icecube"
-GROUP_NAME = "pretrain_sub_5_batch_51_100_large_resume"
+GROUP_NAME = "resume_sub_5_batch_51_100_large_resume_np_200"
 
 CREATE_FOLDS = False
 
@@ -179,6 +179,7 @@ def build_model(
             "lr": LR,
             "momentum": MOMENTUM,
             "nesterov": True,
+            "weight_decay": 1e-4,
         },
         scheduler_class=PiecewiseLinearLR,
         scheduler_kwargs={
@@ -295,10 +296,10 @@ def train_dynedge(
 
     # Training model
     callbacks = [
-        # EarlyStopping(
-        #     monitor="val/mae",
-        #     patience=config["early_stopping_patience"],
-        # ),
+        EarlyStopping(
+            monitor="val/mae",
+            patience=config["early_stopping_patience"],
+        ),
         LearningRateMonitor(logging_interval="step"),
         ProgressBar(),
         ModelCheckpoint(
@@ -377,10 +378,10 @@ def test_dynedge(
 
     # Training model
     callbacks = [
-        # EarlyStopping(
-        #     monitor="val/mae",
-        #     patience=config["early_stopping_patience"],
-        # ),
+        EarlyStopping(
+            monitor="val/mae",
+            patience=config["early_stopping_patience"],
+        ),
         LearningRateMonitor(logging_interval="step"),
         ProgressBar(),
         ModelCheckpoint(
@@ -408,12 +409,10 @@ def test_dynedge(
     return model
 
 if __name__ == "__main__":
-    if TRAIN:
-        for fold in range(NUM_FOLDS):
-            train_dynedge(
-                config=config,
-                fold=fold,
-                resume="/media/eden/sandisk/projects/icecube/logs/icecube/bx1cuyfg/checkpoints/graphnet-epochepoch=68-val_maeval/mae=1.2103.ckpt",
-            )
-    else:
+    for fold in range(NUM_FOLDS):
+        train_dynedge(
+            config=config,
+            fold=fold,
+            resume="/media/eden/sandisk/projects/icecube/models/graphnet/pretrain-epoch=66-mae=1.2138.ckpt",
+        )
 

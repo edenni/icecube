@@ -1,6 +1,6 @@
 from pathlib import Path
 
-project_dir = Path.cwd().parent.parent
+project_dir = Path("/media/eden/sandisk/projects/icecube")
 
 # Data
 input_dir = project_dir / "input"
