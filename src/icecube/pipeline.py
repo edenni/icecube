@@ -9,7 +9,6 @@ from pytorch_lightning.loggers.wandb import WandbLogger
 
 from icecube.data.utils import create_dataloaders
 from icecube.utils.logging import flatten_dict
-from icecube.model.lstm import LSTMRegressor
 
 
 def one_cycle(
@@ -52,11 +51,6 @@ def one_cycle(
         return trainer.checkpoint_callback.best_model_path
     else:
         return None
-
-
-def cv(cfg: DictConfig) -> None:
-    assert cfg.num_folds > 0
-
 
 def train(cfg):
     if cfg.cv and isinstance(cfg.cv, int):

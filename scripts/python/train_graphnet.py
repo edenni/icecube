@@ -11,13 +11,10 @@ logger = get_logger(log_folder=log_dir)
 import numpy as np
 import pandas as pd
 import torch
-from pytorch_lightning.callbacks import (
-    EarlyStopping,
-    LearningRateMonitor,
-    ModelCheckpoint,
-)
+from pytorch_lightning.callbacks import (EarlyStopping, LearningRateMonitor,
+                                         ModelCheckpoint)
 from pytorch_lightning.loggers import WandbLogger
-from pytorch_lightning.profiler import SimpleProfiler
+from pytorch_lightning.profiler import SimpleProfiler, AdvancedProfiler
 from sklearn.model_selection import KFold
 from torch.optim import SGD
 from tqdm import tqdm
@@ -27,9 +24,8 @@ from graphnet.models import StandardModel
 from graphnet.models.detector.icecube import IceCubeKaggle
 from graphnet.models.gnn import DynEdge
 from graphnet.models.graph_builders import KNNGraphBuilder
-from graphnet.models.task.reconstruction import (
-    DirectionReconstructionWithKappa,
-)
+from graphnet.models.task.reconstruction import \
+    DirectionReconstructionWithKappa
 from graphnet.training.callbacks import PiecewiseLinearLR, ProgressBar
 from graphnet.training.labels import Direction
 from graphnet.training.loss_functions import VonMisesFisher3DLoss
@@ -39,19 +35,20 @@ torch.set_float32_matmul_precision("high")
 
 
 PULSEMAP = "pulse_table"
-DATABASE_PATH = database_dir / "batch_51_100.db"
+# DATABASE_PATH = database_dir / "batch_51_100.db"
+DATABASE_PATH = Path("/media/eden/sandisk/projects/icecube/input/sqlite/batch_51_100.db")
 # DATABASE_PATH = "/media/eden/sandisk/projects/icecube/input/sqlite/batch_1.db"
 PULSE_THRESHOLD = 200
 SEED = 42
 
 # Training configs
 MAX_EPOCHS = 100
-LR = 3e-4
-MOMENTUM = 0.9
+LR = 1e-2
+MOMENTUM = 0.87
 BS = 1024
 ES = 10
 NUM_FOLDS = 5
-NUM_WORKERS = 16
+NUM_WORKERS = 4
 
 # Paths
 FOLD_PATH = input_dir / "folds"
@@ -59,64 +56,13 @@ COUNT_PATH = FOLD_PATH / "batch51_100_counts.csv"
 CV_PATH = FOLD_PATH / f"batch51_100_cv_max_{PULSE_THRESHOLD}_pulses.csv"
 WANDB_DIR = log_dir
 PROJECT_NAME = "icecube"
-GROUP_NAME = "resume_sub_5_batch_51_100_large_resume_np_200"
+GROUP_NAME = "pretrain_batch_51_100_np_200"
 
 CREATE_FOLDS = False
 
 
-def make_selection(
-    df: pd.DataFrame, num_folds: int = 5, pulse_threshold: int = 200
-) -> None:
-    """Creates a validation and training selection (20 - 80). All events in both selections satisfies n_pulses <= 200 by default."""
-    n_events = np.arange(0, len(df), 1)
-    df["fold"] = 0
-
-    kf = KFold(n_splits=num_folds, shuffle=True, random_state=SEED)
-    for i, (_, val_idx) in enumerate(kf.split(n_events)):
-        df.loc[val_idx, "fold"] = i
-
-    # Remove events with large pulses from training and validation sample (memory)
-    df["fold"][df["n_pulses"] > pulse_threshold] = -1
-
-    df.to_csv(CV_PATH)
-    return
-
-
-def get_number_of_pulses(db: Path, event_id: int, pulsemap: str) -> int:
-    with sqlite3.connect(str(db)) as con:
-        query = f"select event_id from {pulsemap} where event_id = {event_id} limit 20000"
-        data = con.execute(query).fetchall()
-    return len(data)
-
-
-def count_pulses(database: Path, pulsemap: str) -> pd.DataFrame:
-    """Will count the number of pulses in each event and return a single dataframe that contains counts for each event_id."""
-    with sqlite3.connect(str(database)) as con:
-        query = "select event_id from meta_table"
-        events = pd.read_sql(query, con)
-    counts = {"event_id": [], "n_pulses": []}
-
-    for event_id in tqdm(events["event_id"]):
-        a = get_number_of_pulses(database, event_id, pulsemap)
-        counts["event_id"].append(event_id)
-        counts["n_pulses"].append(a)
-
-    df = pd.DataFrame(counts)
-    df.to_csv(COUNT_PATH)
-    return df
-
-
-if CREATE_FOLDS:
-    df = (
-        count_pulses(DATABASE_PATH, PULSEMAP)
-        if not COUNT_PATH.exists()
-        else pd.read_csv(COUNT_PATH)
-    )
-    make_selection(df=df, num_folds=NUM_FOLDS, pulse_threshold=PULSE_THRESHOLD)
-
-
 config = {
-    "path": str(DATABASE_PATH),
+    "path": "/media/eden/sandisk/projects/icecube/input/sqlite/batch_51_100.db",
     "pulsemap": "pulse_table",
     "truth_table": "meta_table",
     "features": FEATURES.KAGGLE,
@@ -131,8 +77,8 @@ config = {
         "max_epochs": MAX_EPOCHS,
         "gpus": [0],
         "distribution_strategy": None,
-        "limit_train_batches": 0.1,  # debug
-        "limit_val_batches": 0.1,
+        "limit_train_batches": 1.0,  # debug
+        "limit_val_batches": 1.0,
     },
     "base_dir": "training",
     "wandb": {
@@ -154,7 +100,28 @@ def build_model(
     gnn = DynEdge(
         nb_inputs=detector.nb_outputs,
         global_pooling_schemes=["min", "max", "mean"],
+        dynedge_layer_sizes = [
+                (
+                    128,
+                    256,
+                ),
+                (
+                    336,
+                    256,
+                ),
+                (
+                    336,
+                    256,
+                    256,
+                ),
+                (
+                    336,
+                    256,
+                    256,
+                ),
+            ]
     )
+    gnn._activation = torch.nn.Mish()
 
     if config["target"] == "direction":
         task = DirectionReconstructionWithKappa(
@@ -179,16 +146,17 @@ def build_model(
             "lr": LR,
             "momentum": MOMENTUM,
             "nesterov": True,
-            "weight_decay": 1e-4,
+            # "weight_decay": 1e-4,
         },
         scheduler_class=PiecewiseLinearLR,
         scheduler_kwargs={
             "milestones": [
                 0,
                 len(train_dataloader) / 2,
+                len(train_dataloader) * config["fit"]["max_epochs"] / 10,
                 len(train_dataloader) * config["fit"]["max_epochs"],
             ],
-            "factors": [1e-03, 1, 1e-03],
+            "factors": [1e-03, 1, 1e-01, 1e-04],
         },
         scheduler_config={
             "interval": "step",
@@ -221,16 +189,23 @@ def load_pretrained_model(
 
 def make_dataloaders(config: Dict[str, Any], fold: int = 0) -> List[Any]:
     """Constructs training and validation dataloaders for training with early stopping."""
-    df_cv = pd.read_csv(CV_PATH)
 
-    val_idx = (
-        df_cv[df_cv["fold"] == fold][config["index_column"]].ravel().tolist()
-    )
-    train_idx = (
-        df_cv[~df_cv["fold"].isin([-1, fold])][config["index_column"]]
-        .ravel()
-        .tolist()
-    )
+    train_idx = pd.read_csv("/media/eden/sandisk/projects/icecube/input/folds/batch51_100_train.csv")[config["index_column"]].to_list()
+    val_idx = pd.read_csv("/media/eden/sandisk/projects/icecube/input/folds/batch51_100_test.csv")[config["index_column"]].to_list()
+
+    # df_cv = pd.read_csv(CV_PATH)
+
+    # val_idx = (
+    #     df_cv[df_cv["fold"] == fold][config["index_column"]].ravel().tolist()
+    # )
+    # train_idx = (
+    #     df_cv[~df_cv["fold"].isin([-1, fold])][config["index_column"]]
+    #     .ravel()
+    #     .tolist()
+    # )
+
+    logger.info(f"training samples: {len(train_idx)}")
+    logger.info(f"val samples: {len(val_idx)}")
 
     train_dataloader = make_dataloader(
         db=config["path"],
@@ -270,8 +245,12 @@ def train_dynedge(
     logger.info(f"features: {config['features']}")
     logger.info(f"truth: {config['truth']}")
 
+    # run_name = (
+    #     f"dynedge_{config['target']}_{config['run_name_tag']}_fold{fold}"
+    # )
+
     run_name = (
-        f"dynedge_{config['target']}_{config['run_name_tag']}_fold{fold}"
+        f"dynedge_{config['target']}_{config['run_name_tag']}_np200_aux0.8_h256"
     )
 
     wandb_logger = WandbLogger(
@@ -306,11 +285,10 @@ def train_dynedge(
             filename="graphnet-{val/mae:.4f}-{epoch:02d}",
             monitor="val/mae",
             mode="min",
-            save_top_k=3,
         ),
     ]
 
-    profiler = SimpleProfiler(dirpath=log_dir, filename="profile")
+    profiler = AdvancedProfiler(dirpath=log_dir, filename="profile")
 
     model.fit(
         train_dataloader,
@@ -345,74 +323,9 @@ def calculate_angular_error(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def test_dynedge(
-    config: Dict[str, Any], resume: Path = None
-) -> pd.DataFrame:
-    """Builds(or resumes) and trains GNN according to config."""
-    logger.info(f"features: {config['features']}")
-    logger.info(f"truth: {config['truth']}")
-
-    run_name = (
-        f"dynedge_{config['target']}_{config['run_name_tag']}"
-    )
-
-    wandb_logger = WandbLogger(
-        project=PROJECT_NAME,
-        group=GROUP_NAME,
-        name=run_name,
-        save_dir=WANDB_DIR,
-        log_model=True,
-    )
-    wandb_logger.experiment.config.update(config)
-
-    train_dataloader, validate_dataloader = make_dataloaders(
-        config=config, fold=fold
-    )
-
-    if not resume:
-        model = build_model(config, train_dataloader)
-    else:
-        model = load_pretrained_model(config, state_dict_path=resume)
-
-    wandb_logger.experiment.watch(model, log="all")
-
-    # Training model
-    callbacks = [
-        EarlyStopping(
-            monitor="val/mae",
-            patience=config["early_stopping_patience"],
-        ),
-        LearningRateMonitor(logging_interval="step"),
-        ProgressBar(),
-        ModelCheckpoint(
-            filename="graphnet-{val/mae:.4f}-{epoch:02d}",
-            monitor="val/mae",
-            mode="min",
-            save_top_k=3,
-        ),
-    ]
-
-    profiler = SimpleProfiler(dirpath=log_dir, filename="profile")
-
-    model.fit(
-        train_dataloader,
-        validate_dataloader,
-        callbacks=callbacks,
-        logger=wandb_logger,
-        profiler=profiler,
-        **config["fit"],
-    )
-
-    wandb_logger.experiment.save(str(profiler.dirpath / profiler.filename))
-    wandb_logger.experiment.finish()
-
-    return model
 
 if __name__ == "__main__":
-    for fold in range(NUM_FOLDS):
-        train_dynedge(
-            config=config,
-            fold=fold,
-            resume="/media/eden/sandisk/projects/icecube/models/graphnet/pretrain-epoch=66-mae=1.2138.ckpt",
-        )
-
+    train_dynedge(
+        config=config,
+        # resume="/media/eden/sandisk/projects/icecube/models/graphnet/ft-epoch=52-mae=1.0905.ckpt",
+    )

@@ -91,6 +91,7 @@ class LSTM(LightningModule):
         x, y, y_oh = batch
         loss, _ = self.__shared_step(x, y, y_oh)
         self.log("train/loss", loss, on_step=True)
+        return loss
 
     def validation_step(self, batch, batch_idx):
         x, y, y_oh = batch
@@ -98,7 +99,7 @@ class LSTM(LightningModule):
         self.log("val/loss", loss)
 
         if self.hparams.task == "clf":
-            self.acc(y_hat, y)
+            self.acc(y_hat, y_oh)
             azimuth, zenith = bins2angles(
                 y_hat, self.angle_bins, self.num_bins
             )

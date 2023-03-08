@@ -5,7 +5,7 @@
 
 defaults:
   - override /data: event.yaml
-  - override /model: lstmrgr.yaml
+  - override /model: lstm.yaml
   - override /callbacks: default.yaml
   - override /trainer: default.yaml
   - override /logger: wandb
@@ -47,8 +47,8 @@ model:
 
 logger:
   project: icecube
-  name: pointpicker_lstm_rgr_batch_51_74_bi_bias_shift
-  group: 
+  name: pointpicker_lstm_batch_51_80_bi_bias_shift
+  group: lstm
   log_model: true
 
 num_bins: 16

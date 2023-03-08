@@ -1,13 +1,16 @@
 import gc
 import logging
+import os
+from glob import glob
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
+import polars as pl
 import torch
 from pytorch_lightning import LightningDataModule
 from sklearn.model_selection import KFold, train_test_split
 from sklearn.preprocessing import StandardScaler
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader, Dataset, TensorDataset
 
 from icecube.data.utils import az_onehot
 from icecube.utils.coordinate import create_bins
@@ -31,19 +34,23 @@ class EventDataModule(LightningDataModule):
     ) -> None:
         super(EventDataModule, self).__init__()
 
+        if batch_ids:
+            assert len(batch_ids) == 2
+            self.batch_ids = list(range(batch_ids[0], batch_ids[1]+1))
+
         self.save_hyperparameters(logger=False)
 
     def setup(self, stage: Optional[str] = None) -> None:
         if not stage or stage == "fit":
             # Read data
             logger.info(
-                f"Reading picked up points from batches: {self.hparams.batch_ids}"
+                f"Reading picked up points from batches: {self.hparams.batch_ids[0]} to {self.hparams.batch_ids[1]}"
             )
 
             X: Optional[np.ndarray] = None
             y: Optional[np.ndarray] = None
 
-            for batch_id in self.hparams.batch_ids:
+            for batch_id in self.batch_ids:
                 logger.info(f"Reading batch {batch_id}")
                 train_data_file: np.ndarray = np.load(
                     self.hparams.file_format.format(batch_id=batch_id)
@@ -78,18 +85,23 @@ class EventDataModule(LightningDataModule):
 
             # Pre-processing
             logger.info("Standard normalization")
-            from time import time
-            start = time()
-            original_shape = X.shape
-            scaler = StandardScaler().fit(
-                X[: min(original_shape[0], 100000)].reshape(
-                    -1, original_shape[-1]
-                )
-            )
-            logging.info(f"Fitting toke {time()-start}s")
-            X = scaler.transform(X.reshape(-1, original_shape[-1])).reshape(
-                original_shape
-            )
+            # original_shape = X.shape
+            # scaler = StandardScaler().fit(
+            #     X[: min(original_shape[0], 100000)].reshape(
+            #         -1, original_shape[-1]
+            #     )
+            # )
+            # X = scaler.transform(X.reshape(-1, original_shape[-1])).reshape(
+            #     original_shape
+            # )
+            X[:, :, 0] = (X[:, :, 0] - 1.0e04) / 3.0e4  # time
+            X[:, :, 1] /= 300.0  # charge
+            X[:, :, 3] /= 600.0  # x
+            X[:, :, 4] /= 600.0  # y
+            X[:, :, 5] /= 600.0  # z
+            X[:, :, 6] /= 600.0  # r_err
+            X[:, :, 7] /= 600.0  # z_err
+            X[:, :, 8] /= 4.0
 
             # Split dataset
             if self.hparams.num_folds and self.hparams.k:
@@ -105,20 +117,28 @@ class EventDataModule(LightningDataModule):
                 y_onehot_val = y_onehot[val_idx]
             else:
                 logger.info(f"Split data with val_size={self.hparams.val_size}")
-                (
-                    X_train,
-                    X_val,
-                    y_train,
-                    y_val,
-                    y_onehot_train,
-                    y_onehot_val,
-                ) = train_test_split(
-                    X,
-                    y,
-                    y_onehot,
-                    test_size=self.hparams.val_size,
-                    shuffle=True,
-                )
+                n = len(X)
+                n_val = int(n * self.hparams.val_size)
+                X_train = X[:-n_val]
+                X_val = X[-n_val:]
+                y_train = y[:-n_val]
+                y_val = y[-n_val:]
+                y_onehot_train = y_onehot[:-n_val]
+                y_onehot_val = y_onehot[-n_val:]
+                # (
+                #     X_train,
+                #     X_val,
+                #     y_train,
+                #     y_val,
+                #     y_onehot_train,
+                #     y_onehot_val,
+                # ) = train_test_split(
+                #     X,
+                #     y,
+                #     y_onehot,
+                #     test_size=self.hparams.val_size,
+                #     shuffle=True,
+                # )
 
             self.trainset = TensorDataset(
                 torch.as_tensor(X_train),
@@ -148,3 +168,4 @@ class EventDataModule(LightningDataModule):
             num_workers=self.hparams.num_workers,
             pin_memory=True,
         )
+
