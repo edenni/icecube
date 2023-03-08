@@ -14,7 +14,7 @@ import torch
 from pytorch_lightning.callbacks import (EarlyStopping, LearningRateMonitor,
                                          ModelCheckpoint)
 from pytorch_lightning.loggers import WandbLogger
-from pytorch_lightning.profiler import SimpleProfiler, AdvancedProfiler
+from pytorch_lightning.profiler import AdvancedProfiler, SimpleProfiler
 from sklearn.model_selection import KFold
 from torch.optim import SGD
 from tqdm import tqdm
@@ -31,7 +31,7 @@ from graphnet.training.labels import Direction
 from graphnet.training.loss_functions import VonMisesFisher3DLoss
 from graphnet.training.utils import make_dataloader
 
-torch.set_float32_matmul_precision("high")
+torch.set_float32_matmul_precision("medium")
 
 
 PULSEMAP = "pulse_table"
@@ -79,6 +79,7 @@ config = {
         "distribution_strategy": None,
         "limit_train_batches": 1.0,  # debug
         "limit_val_batches": 1.0,
+        "precision": 16,
     },
     "base_dir": "training",
     "wandb": {
@@ -245,10 +246,6 @@ def train_dynedge(
     logger.info(f"features: {config['features']}")
     logger.info(f"truth: {config['truth']}")
 
-    # run_name = (
-    #     f"dynedge_{config['target']}_{config['run_name_tag']}_fold{fold}"
-    # )
-
     run_name = (
         f"dynedge_{config['target']}_{config['run_name_tag']}_np200_aux0.8_h256"
     )
@@ -271,7 +268,7 @@ def train_dynedge(
     else:
         model = load_pretrained_model(config, state_dict_path=resume)
 
-    wandb_logger.experiment.watch(model, log="all")
+    # wandb_logger.experiment.watch(model, log="all")
 
     # Training model
     callbacks = [
