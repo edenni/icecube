@@ -32,6 +32,7 @@ class LSTM(LightningModule):
         scheduler: Callable = None,
         criterion: nn.Module = None,
         task: str = "clf",
+        net_name: str = "lstm",
     ):
         super().__init__()
         self.save_hyperparameters(ignore=["criterion"])
@@ -42,9 +43,14 @@ class LSTM(LightningModule):
             "rgr",
         ), f"Task must be one of clf or rgr but got {task}"
 
+        net_name = net_name.upper()
+        assert net_name in ("GRU", "LSTM"), "Inner model should be either LSTM or GRU"
+
         output_size = num_bins**2
 
-        self.lstm = nn.LSTM(
+        net_class = getattr(nn, net_name)
+
+        self.lstm = net_class(
             input_size=input_size,
             hidden_size=hidden_size,
             num_layers=num_layers,

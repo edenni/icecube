@@ -14,3 +14,4 @@ batch_first: true
 dropout: 0
 bidirectional: false
 task: clf
+net_name: lstm

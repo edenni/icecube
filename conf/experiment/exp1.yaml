@@ -35,6 +35,7 @@ data:
   shift_azimuth: false
 
 model:
+  net_name: lstm
   num_layers: 3
   bidirectional: true
   bias: false

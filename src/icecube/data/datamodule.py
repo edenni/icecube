@@ -84,7 +84,7 @@ class EventDataModule(LightningDataModule):
 
             # Shift azimuth
             if self.hparams.shift_azimuth:
-                y[:, 0] += self.azimuth_edges[1] - self.azimuth_edges[0]
+                y[:, 0] += (self.azimuth_edges[1] - self.azimuth_edges[0]) / 2
                 y[:, 0][y[:, 0] > 2 * np.pi] -= 2 * np.pi
 
             # y_onehot = az_onehot(
