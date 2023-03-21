@@ -1,0 +1,59 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+defaults:
+  - override /data: event.yaml
+  - override /model: lstm.yaml
+  - override /callbacks: default.yaml
+  - override /trainer: default.yaml
+  - override /logger: wandb
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+hydra:
+  job:
+    name: pointpicker_lstm
+
+trainer:
+  max_epochs: 500
+
+callbacks:
+  early_stopping:
+    monitor: val/mae
+    patience: 10
+    mode: min
+    min_delta: 0.003
+  model_checkpoint:
+    monitor: val/mae
+    mode: min
+
+data:
+  batch_size: 8192
+  shift_azimuth: true
+
+model:
+  net_name: lstm
+  num_layers: 3
+  bidirectional: true
+  bias: false
+
+  optimizer:
+    lr: 0.001
+  scheduler:
+    patience: 5
+
+logger:
+  project: icecube
+  name: pointpicker_lstm_batch_51_150_bi3l
+  group: lstm
+  log_model: true
+
+num_bins: 24
+
+# train
+train: true
+cv: null
+fold: null
