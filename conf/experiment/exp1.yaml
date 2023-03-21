@@ -31,27 +31,26 @@ callbacks:
     mode: min
 
 data:
-  batch_size: 1024
-  shift_azimuth: true
+  batch_size: 2048
+  shift_azimuth: false
 
 model:
-  num_layers: 2
+  num_layers: 3
   bidirectional: true
-  bias: true
+  bias: false
 
   optimizer:
-    lr: 1e-3
-    weight_decay: 1e-5
+    lr: 0.0005
   scheduler:
     patience: 5
 
 logger:
   project: icecube
-  name: pointpicker_lstm_batch_51_80_bi_bias_shift
+  name: pointpicker_lstm_batch_51_150_bi3l
   group: lstm
   log_model: true
 
-num_bins: 16
+num_bins: 24
 
 # train
 train: true

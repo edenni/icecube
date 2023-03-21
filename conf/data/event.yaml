@@ -1,9 +1,12 @@
 _target_: icecube.data.datamodule.EventDataModule
 data_dir: ${paths.data_dir}/preprocessed
-num_bins: 16
-batch_size: 512
-num_workers: 16
-batch_ids: [51, 100]
-val_size: 0.1
-file_format: ${data.data_dir}/pointpicker_mpc128_n9_batch_{batch_id:d}.npz
+num_bins: ${num_bins}
+batch_size: 2048
+num_workers: 4
+val_size: 0.05
 shift_azimuth: false
+train_files: ${paths.data_dir}/webdatasets/batch-{051..145}.tar
+val_files: ${paths.data_dir}/webdatasets/batch-{146..150}.tar
+max_pulse_count: 96
+file_format: ${paths.data_dir}/preprocessed/pp_mpc96_n7_batch_{batch_id}.npz
+batch_ids: [100, 190]

@@ -5,9 +5,9 @@ defaults:
   - scheduler: plateau
   - criterion: crossentropy
 
-input_size: 9
-hidden_size: 160
-output_size: 256
+input_size: 6
+hidden_size: 192
+num_bins: ${data.num_bins}
 num_layers: 1
 bias: false
 batch_first: true

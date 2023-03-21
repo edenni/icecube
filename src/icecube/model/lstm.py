@@ -1,6 +1,7 @@
 import logging
 from math import sqrt
 from typing import Callable
+
 import torch
 import torch.nn as nn
 from pytorch_lightning import LightningModule
@@ -21,7 +22,7 @@ class LSTM(LightningModule):
         self,
         input_size: int,
         hidden_size: int,
-        output_size: int,
+        num_bins: int,
         num_layers: int = 1,
         bias: bool = False,
         batch_first: bool = True,
@@ -41,7 +42,7 @@ class LSTM(LightningModule):
             "rgr",
         ), f"Task must be one of clf or rgr but got {task}"
 
-        self.num_bins = int(sqrt(output_size))
+        output_size = num_bins**2
 
         self.lstm = nn.LSTM(
             input_size=input_size,
@@ -54,7 +55,9 @@ class LSTM(LightningModule):
         )
 
         fc_input = hidden_size * 2 if bidirectional else hidden_size
-        self.linear = nn.Linear(fc_input, output_size)
+        self.prj = nn.Linear(fc_input, 256)
+        self.relu = nn.ReLU()
+        self.fc = nn.Linear(256, output_size)
 
         self.criterion = criterion
 
@@ -62,49 +65,65 @@ class LSTM(LightningModule):
 
         if task == "clf":
             self.acc = Accuracy(task="multiclass", num_classes=output_size)
-            azimuth_bins, zenith_bins = create_bins(self.num_bins)
+            azimuth_bins, zenith_bins = create_bins(self.hparams.num_bins)
             azimuth_bins = torch.as_tensor(azimuth_bins)
             zenith_bins = torch.as_tensor(zenith_bins)
 
             self.angle_bins = torch.as_tensor(
-                create_angle_bins(azimuth_bins, zenith_bins, self.num_bins)
+                create_angle_bins(
+                    azimuth_bins, zenith_bins, self.hparams.num_bins
+                )
             )
 
-    def forward(self, x):
+    def forward(self, x, lengths=None):
         # lstm_out = (batch_size, seq_len, hidden_size)
+        if lengths is not None:
+            x = nn.utils.rnn.pack_padded_sequence(
+                x,
+                lengths.cpu(),
+                batch_first=self.hparams.batch_first,
+                enforce_sorted=False,
+            )
         lstm_out, _ = self.lstm(x)
+
+        if lengths is not None:
+            lstm_out, _ = nn.utils.rnn.pad_packed_sequence(
+                lstm_out, batch_first=True
+            )
+
         last = lstm_out[:, -1] if self.hparams.batch_first else lstm_out[-1]
-        y_pred = self.linear(last)
+        y_pred = self.fc(self.relu(self.prj(last)))
         return y_pred
 
-    def __shared_step(self, x, y, y_oh):
-        y_hat = self(x)
+    def _shared_step(self, x, y, y_code, lengths=None):
+        y_hat = self(x, lengths)
 
         if self.hparams.task == "clf":
-            loss = self.criterion(y_hat, y_oh)
+            loss = self.criterion(y_hat, y_code)
         else:
-            loss = self.criterion(y_hat, y_oh)
+            loss = self.criterion(y_hat, y)
 
         return loss, y_hat
 
     def training_step(self, batch, batch_idx):
-        x, y, y_oh = batch
-        loss, _ = self.__shared_step(x, y, y_oh)
+        x, y, y_code = batch
+        loss, _ = self._shared_step(x, y, y_code)
         self.log("train/loss", loss, on_step=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        x, y, y_oh = batch
-        loss, y_hat = self.__shared_step(x, y, y_oh)
+        x, y, y_code = batch
+        loss, y_hat = self._shared_step(x, y, y_code)
         self.log("val/loss", loss)
 
         if self.hparams.task == "clf":
-            self.acc(y_hat, y_oh)
+            self.acc(y_hat, y_code)
             azimuth, zenith = bins2angles(
-                y_hat, self.angle_bins, self.num_bins
+                y_hat.softmax(dim=-1),
+                self.angle_bins,
+                self.hparams.num_bins,
             )
             y_hat = torch.stack([azimuth, zenith], axis=-1)
-
         self.mae(y_hat, y)
 
         return loss

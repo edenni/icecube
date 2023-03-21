@@ -37,7 +37,7 @@ def one_cycle(
     # Retrieve wandb logger
     if isinstance(logger, WandbLogger):
         logger.experiment.config.update(flatten_dict(cfg))
-        logger.experiment.watch(model)
+        logger.experiment.watch(model, log="all")
 
     trainer: Trainer = instantiate(
         cfg.trainer, callbacks=callbacks, logger=logger
@@ -51,6 +51,7 @@ def one_cycle(
         return trainer.checkpoint_callback.best_model_path
     else:
         return None
+
 
 def train(cfg):
     if cfg.cv and isinstance(cfg.cv, int):
