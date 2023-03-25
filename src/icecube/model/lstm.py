@@ -1,11 +1,11 @@
 import logging
-from math import sqrt
 from typing import Callable
 
 import torch
 import torch.nn as nn
 from pytorch_lightning import LightningModule
 from torchmetrics import Accuracy
+from omegaconf import DictConfig
 
 from icecube.metrics.angle import MeanAngularError
 from icecube.utils.coordinate import (
@@ -30,6 +30,7 @@ class LSTM(LightningModule):
         bidirectional: bool = False,
         optimizer: Callable = None,
         scheduler: Callable = None,
+        scheduler_conf: DictConfig = None,
         criterion: nn.Module = None,
         task: str = "clf",
         net_name: str = "lstm",
@@ -44,7 +45,10 @@ class LSTM(LightningModule):
         ), f"Task must be one of clf or rgr but got {task}"
 
         net_name = net_name.upper()
-        assert net_name in ("GRU", "LSTM"), "Inner model should be either LSTM or GRU"
+        assert net_name in (
+            "GRU",
+            "LSTM",
+        ), "Inner model should be either LSTM or GRU"
 
         output_size = num_bins**2
 
@@ -156,13 +160,10 @@ class LSTM(LightningModule):
 
         if self.hparams.scheduler is not None:
             scheduler = self.hparams.scheduler(optimizer=optimizer)
+            sche_conf = self.hparams.scheduler_conf
+            sche_conf["scheduler"] = scheduler
             return {
                 "optimizer": optimizer,
-                "lr_scheduler": {
-                    "scheduler": scheduler,
-                    "monitor": "val/loss",
-                    "interval": "epoch",
-                    "frequency": 1,
-                },
+                "lr_scheduler": dict(sche_conf),
             }
         return {"optimizer": optimizer}

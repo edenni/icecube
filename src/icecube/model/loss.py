@@ -41,4 +41,5 @@ class MeanAngularLoss(nn.Module):
         ae = scalar_prod.arccos().abs()
 
         # convert back to an angle (in radian)
+        print(scalar_prod, ae)
         return ae.mean()

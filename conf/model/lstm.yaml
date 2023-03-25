@@ -15,3 +15,8 @@ dropout: 0
 bidirectional: false
 task: clf
 net_name: lstm
+
+scheduler_conf:
+  monitor: val/loss
+  interval: epoch
+  frequency: 1

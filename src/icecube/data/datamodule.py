@@ -36,6 +36,7 @@ class EventDataModule(LightningDataModule):
         k: int = None,
         shift_azimuth: bool = False,
         max_pulse_count: int = 96,
+        n_features: int = 6,
     ) -> None:
         super(EventDataModule, self).__init__()
 
@@ -49,29 +50,45 @@ class EventDataModule(LightningDataModule):
                 f"Reading picked up points from batches: {self.hparams.batch_ids[0]} to {self.hparams.batch_ids[1]}"
             )
 
-            X: Optional[np.ndarray] = None
-            y: Optional[np.ndarray] = None
-
             batch_ids = list(
                 range(self.hparams.batch_ids[0], self.hparams.batch_ids[1] + 1)
             )
 
-            for batch_id in batch_ids:
+            N_CHUNK = 200000
+            # batch 660 has events less than 200000
+            assert 660 not in batch_ids, "Batch 660 is not available"
+            X: Optional[np.ndarray] = np.zeros(
+                (
+                    len(batch_ids) * N_CHUNK,
+                    self.hparams.max_pulse_count,
+                    self.hparams.n_features,
+                ),
+                dtype=np.float16,
+            )
+            y: Optional[np.ndarray] = np.zeros(
+                (len(batch_ids) * N_CHUNK, 2), dtype=np.float16
+            )
+
+            for i, batch_id in enumerate(batch_ids):
                 logger.info(f"Reading batch {batch_id}")
                 train_data_file: np.ndarray = np.load(
                     self.hparams.file_format.format(batch_id=batch_id)
                 )
 
-                X = (
-                    train_data_file["x"][:, :, :-1]
-                    if X is None
-                    else np.append(X, train_data_file["x"][:, :, :-1], axis=0)
-                )
-                y = (
-                    train_data_file["y"]
-                    if y is None
-                    else np.append(y, train_data_file["y"], axis=0)
-                )
+                # X = (
+                #     train_data_file["x"][:, :, :-1]
+                #     if X is None
+                #     else np.append(X, train_data_file["x"][:, :, :-1], axis=0)
+                # )
+                # y = (
+                #     train_data_file["y"]
+                #     if y is None
+                #     else np.append(y, train_data_file["y"], axis=0)
+                # )
+                X[i * N_CHUNK : (i + 1) * N_CHUNK] = train_data_file["x"][
+                    :, :, :-1
+                ]
+                y[i * N_CHUNK : (i + 1) * N_CHUNK] = train_data_file["y"]
 
                 train_data_file.close()
                 del train_data_file
