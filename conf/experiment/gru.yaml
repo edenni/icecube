@@ -1,0 +1,65 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+defaults:
+  - override /data: event.yaml
+  - override /model: lstm.yaml
+  - override /callbacks: default.yaml
+  - override /trainer: default.yaml
+  - override /logger: wandb
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+paths:
+  root_dir: /home/paperspace/projects/icecube
+
+hydra:
+  job:
+    name: pointpicker_lstm
+
+trainer:
+  max_epochs: 500
+
+callbacks:
+  early_stopping:
+    patience: 10
+    min_delta: 0.002
+  model_checkpoint:
+    filename: "lstm-{val/mae:.3f}-{epoch:03d}"
+
+data:
+  batch_size: 8192
+  shift_azimuth: false
+  batch_ids: [191, 300]
+  file_format: ${paths.data_dir}/preprocessed/pp_mpc96_n7_batch_{batch_id}.npz
+
+
+model:
+  net_name: gru
+  num_layers: 3
+  bidirectional: true
+  bias: false
+
+  optimizer:
+    lr: 0.0015
+  scheduler:
+    patience: 5
+    threshold: 3e-3
+  scheduler_conf:
+    interval: epoch
+
+logger:
+  project: icecube
+  name: pointpicker_gru_batch_191_300_bi3l
+  group: lstm
+  log_model: true
+
+num_bins: 24
+
+# train
+train: true
+cv: null
+fold: null
