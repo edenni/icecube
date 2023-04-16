@@ -8,7 +8,7 @@ from typing import List, Optional, Tuple, Union
 import numpy as np
 import polars as pl
 import torch
-import webdataset as wbs
+# import webdataset as wbs
 from pytorch_lightning import LightningDataModule
 from sklearn.model_selection import KFold, train_test_split
 from sklearn.preprocessing import StandardScaler
@@ -276,7 +276,6 @@ class EventDataModule(LightningDataModule):
             batch_size=self.hparams.batch_size,
             num_workers=self.hparams.num_workers,
             pin_memory=True,
-            persistent_workers=True,
         )
 
     def val_dataloader(self) -> DataLoader:
@@ -285,5 +284,4 @@ class EventDataModule(LightningDataModule):
             batch_size=self.hparams.batch_size,
             num_workers=self.hparams.num_workers,
             pin_memory=True,
-            persistent_workers=True,
         )

@@ -2,7 +2,7 @@ _target_: icecube.model.lstm.LSTM
 
 defaults:
   - optimizer: adam
-  - scheduler: plateau
+  - scheduler: coswarmup
   - criterion: crossentropy
 
 input_size: 6

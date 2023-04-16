@@ -1,0 +1,69 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+defaults:
+  - override /data: event.yaml
+  - override /model: lstm.yaml
+  - override /callbacks: default.yaml
+  - override /trainer: default.yaml
+  - override /logger: mlflow.yaml
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+model_name: gru
+
+hydra:
+  job:
+    name: pointpicker_${model_name}
+
+trainer:
+  max_epochs: 500
+
+callbacks:
+  early_stopping:
+    patience: 10
+    min_delta: 0.002
+  model_checkpoint:
+    filename: ${model_name}-{val/mae:.3f}-{epoch:03d}
+  lr_monitor:
+    logging_interval: step
+
+data:
+  batch_size: 8000
+  num_workers: 0
+  shift_azimuth: false
+  batch_ids: [301, 600]
+  file_format: ${paths.data_dir}/preprocessed/pp_mpc96_n7_batch_{batch_id}.npz
+  val_size: 0.05
+
+model:
+  net_name: ${model_name}
+  num_layers: 4
+  bidirectional: true
+  bias: false
+
+  optimizer:
+    lr: 3e-4
+    weight_decay: 0.001
+  scheduler:
+    first_cycle_steps: 150000
+    max_lr: 5e-4
+    min_lr: 1e-7
+    warmup_steps: 3500
+    gamma: 0.5
+  scheduler_conf:
+    interval: step
+
+logger:
+  experiment_name: icecube
+  run_name: pointpicker_${model_name}_batch_301_600_bi4l
+
+num_bins: 24
+
+# train
+train: true
+cv: null
+fold: null

@@ -1,5 +1,6 @@
 from typing import List, Optional
 
+import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig
 from pytorch_lightning import LightningDataModule, LightningModule, Trainer
@@ -21,6 +22,8 @@ def one_cycle(
     """
     dm: LightningDataModule = instantiate(cfg.data, num_folds=num_folds, k=k)
     model: LightningModule = instantiate(cfg.model)
+    # state_dict = torch.load("/home/jupyter/workspace/icecube/logs/pointpicker_lstm/runs/2023-04-09_16-54-41/checkpoints/lstm-1.388-004.ckpt")["state_dict"]
+    # model.load_state_dict(state_dict)
 
     callbacks: Optional[List[Callback]] = (
         [
@@ -44,8 +47,6 @@ def one_cycle(
     )
 
     trainer.fit(model=model, datamodule=dm)
-
-    logger.experiment.finish()
 
     if trainer.checkpoint_callback:
         return trainer.checkpoint_callback.best_model_path

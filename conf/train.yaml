@@ -16,3 +16,6 @@ tags: ["train"]
 
 pipeline: train
 seed: 42
+
+paths:
+  root_dir: .
