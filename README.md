@@ -1,5 +1,14 @@
 # IceCube
 
+## Solution
+
+Model: 2 * LSTM + 2 * GRU, regression -> classification with shifting
+
+Features:
+- using `auxiliary` and other feature to create `priority`
+-  picking up important samples with window
+  
+See those data processing notebook for detail.   
 
 ## Installation
 
